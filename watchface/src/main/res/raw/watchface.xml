@@ -1,0 +1,672 @@
+<!--
+  Health Watch Face Example
+
+  Purpose:
+    A health-focused face for stroke recovery with progress rings and short labels complications.
+
+  Complication Types Used:
+    - RANGED_VALUE (progress rings: goal, wear time, battery)
+    - SHORT_TEXT   (emojis/labels/status)
+
+  Slots (id → type → role → default provider):
+    - slotId=0 → RANGED_VALUE  → Primary progress ring  → MyProgressComplicationProviderService
+    - slotId=1 → SHORT_TEXT    → Left emoji/label       → MyComplicationProviderService
+    - slotId=2 → RANGED_VALUE  → Wear time ring         → MyWearTimeComplicationProviderService
+    - slotId=3 → RANGED_VALUE  → Battery ring           → System WATCH_BATTERY
+    - slotId=4 → SHORT_TEXT    → Restart/status button  → MyServiceAliveCheckComplicationProviderService
+
+  Customize:
+    - Replace default providers with your package/class names as needed.
+    - Map your health metric to [MIN, VALUE, MAX] (units: minutes for time).
+    - Localize labels (“active”, “wear time”, “battery”) via your resources.
+
+  Version: 1.0.0
+  Min Wear OS: 4+ (Galaxy Watch 4/5/6 tested)
+  License: MIT
+  Author: Guillem Cornella i Barba • University of California, Irvine (2025)
+  Repo: https://github.com/<your-org>/<your-repo> (update once public)
+-->
+
+<!--
+  - Canvas size: 450×450 px (square render area for round displays)
+  - CLOCK_TYPE: Digital clock mode
+  - PREVIEW_TIME: Default preview shown in editor (10:08:32)
+-->
+<WatchFace width="450" height="450">
+    <Metadata key="CLOCK_TYPE" value="DIGITAL" />       <!-- Sets the CLOCK_TYPE to Digital mode -->
+    <Metadata key="PREVIEW_TIME" value="10:08:32" />    <!-- Sets the PREVIEW_TIME shown in the editor -->
+
+    <!--
+        User-selectable theme palette.
+        - <UserConfigurations>: declares settings the user can change for this watch face.
+        - <ColorConfiguration id="themeColor">: a color theme picker; default option is id="0".
+        - <ColorOption id="0">: defines a palette as a space-separated list of hex colors.
+        * Elsewhere, reference colors by index with [CONFIGURATION.themeColor.N]
+          e.g., [CONFIGURATION.themeColor.0] = #A9A9A9 (Dark Gray),
+          #A9A9A9 Dark Gray     #32CD32 Lime Green       #D6D5D4 Light Gray   #333333 Charcoal
+          #000000 Black         #2B3A33 Deep Pine Green  #E23E3E Crimson Red  #736D45 Olive/Brass
+          #FFD600 Vivid Yellow  #293950 Navy Slate       #2196F3 Azure Blue
+    -->
+    <UserConfigurations>
+        <ColorConfiguration id="themeColor" defaultValue="0" displayName="colors_label" screenReaderText="colors_label">
+            <ColorOption
+                displayName="theme_one_label"
+                id="0"
+                colors="#A9A9A9 #32CD32 #d6d5d4 #333333 #000000 #2B3A33 #E23E3E #736D45 #FFD600 #293950 #2196F3"
+                />
+            <ColorOption
+                displayName="theme_two_label"
+                id="1"
+                colors="#A9A9A9 #32CD32 #d6d5d4 #333333 #000000 #2B3A33 #E23E3E #736D45 #FFD600 #293950 #2196F3"
+                />
+        </ColorConfiguration>
+    </UserConfigurations>
+
+    <Scene backgroundColor="#ff000000">
+        <!--
+            MOVEMENT PROGRESS COMPLICATION - Type: RANGED_VALUE
+            {Show your movement progress towards a daily goal in green color centered on the watch face}
+            - x / y: top-left position (in pixels) of the slot’s bounding box within the 450×450 canvas.
+            - width / height: size (px) of that bounding box; this slot is 150×150.
+            - slotId: unique numeric ID used by the system/app to reference this slot 0.
+            - name: internal identifier (developer-facing).
+            - displayName: human-readable name shown in UI/pickers.
+            - tapEnabled (false): tapping this slot does not trigger any actions
+            - supportedTypes: This complication slot accepts RANGED_VALUE types
+        -->
+        <ComplicationSlot
+            x="150" y="150"
+            width="150" height="150"
+            slotId="0"
+            name="main_progress_ring"
+            displayName="Main Progress Ring"
+            tapEnabled="false"
+            supportedTypes="RANGED_VALUE">
+
+            <!--
+                Default data sources (providers) for this complication slot.
+                - primaryProvider: the custom complication service from this app that supplies data
+                    You should define your own providers. We provide some examples also in this repo.
+                        → com.project.yourProjectName.complications.MyProgressComplicationProviderService
+                - primaryProviderType: data format from that provider (RANGED_VALUE = numeric progress with min/max).
+                - defaultSystemProvider: fallback system source (STEP_COUNT) if the custom one is unavailable.
+                - defaultSystemProviderType: data type expected from the system provider (also RANGED_VALUE).
+                → Default ensures this slot always shows a valid progress ring, 1st a custom metric, 2nd a step count as fallback.
+            -->
+            <DefaultProviderPolicy
+                primaryProvider="com.example.kurtosisstudy/com.example.kurtosisstudy.complications.MyProgressComplicationProviderService"
+                primaryProviderType="RANGED_VALUE"
+                defaultSystemProvider="STEP_COUNT"
+                defaultSystemProviderType="RANGED_VALUE" />
+
+            <!--
+                BoundingOval defines the circular boundary for this complication slot.
+                - BoundingOval: sets the drawable (and tap) region shape to an oval/circle.
+                - x / y: top-left corner of the oval within the slot’s local coordinates.
+                - width / height: size (diameter) of the oval in pixels (150×150 here).
+                - outlinePadding: inner margin from the oval edge; 0 = no padding.
+                → Used to clip visuals and, if tapEnabled="true", it defines the touch area.
+            -->
+            <BoundingOval
+                x="0" y="0"
+                width="150" height="150"
+                outlinePadding="0" />
+
+            <!--
+                Circular progress ring complication.
+                - Background ring: static full circle (gray) shown behind the progress arc.
+                - Progress ring: main dynamic arc whose length = value normalized from min→max.
+                - Progress ring (ambient): same arc shown in ambient mode.
+                - Value: displays the current value as h'm format (e.g., 2h15') in active mode.
+                - Value (ambient): simplified time display shown only in ambient mode.
+                - Label ("active"): small text below the value to describe what the metric represents.
+            -->
+            <Complication type="RANGED_VALUE">
+                <!--
+                    BACKGROUND RING (only shown when there's data from the provider and when in {active} mode)
+                  - PartDraw: drawing layer positioned at (0,0) sized 150×150 px.
+                  - Variant: set alpha=0 in ambient mode to hide the background ring when idle.
+                  - Arc: full 360° circle drawn clockwise, centered at (75,75) with diameter 135 px.
+                  - Stroke: ring outline style; color from themeColor[5] (dark green), rounded ends, 15 px thick.
+                -->
+                <PartDraw x="0" y="0" height="150" width="150" when="[COMPLICATION.HAS_DATA]">
+                    <Variant mode="AMBIENT" target="alpha" value="0" />
+                    <Arc
+                        direction="CLOCKWISE"
+                        startAngle="0"
+                        endAngle="360"
+                        centerX="75" centerY="75"
+                        width="135" height="135">
+                        <Stroke color="[CONFIGURATION.themeColor.5]" cap="ROUND" thickness="15" />
+                    </Arc>
+                </PartDraw>
+
+                <!--
+                    PROGRESS RING (Shown in active & ambient, but only when there's data from the provider)
+                  - Transform (target="endAngle"): computes how far the arc should sweep.
+                      * It NORMALIZES the ranged value to [0..1]:
+                          norm = ( clamp(value, min, max) - min ) / (max - min)
+                      * Then maps to degrees:
+                          endAngle = norm * 360
+                      * clamp(...) prevents overshoot/undershoot if the provider reports out-of-range values.
+                  - Stroke: ring outline style; color from themeColor[1] (bright green), rounded ends, 15 px thick.
+                -->
+                <PartDraw x="0" y="0" height="150" width="150" when="[COMPLICATION.HAS_DATA]">
+                    <Arc
+                        direction="CLOCKWISE"
+                        startAngle="0"
+                        centerX="75" centerY="75"
+                        width="135" height="135">
+                        <Transform
+                            target="endAngle"
+                            value="((clamp(([COMPLICATION.RANGED_VALUE_VALUE]), ([COMPLICATION.RANGED_VALUE_MIN]), ([COMPLICATION.RANGED_VALUE_MAX])) - ([COMPLICATION.RANGED_VALUE_MIN])) / (([COMPLICATION.RANGED_VALUE_MAX]) - ([COMPLICATION.RANGED_VALUE_MIN]))) * 360" />
+                        <Stroke color="[CONFIGURATION.themeColor.1]" cap="ROUND" thickness="15" />
+                    </Arc>
+                </PartDraw>
+
+                <!--
+                    PROGRESS VALUE LABEL (shown in active & ambient, only when data exists)
+                    - PartText: centered h'm display derived from RANGED_VALUE minutes.
+                    - when="[COMPLICATION.HAS_DATA]": hide entirely if provider has no data.
+                    - <Template>: defines the displayed string ("%sh%s'").
+                      * 1st <Parameter>: floor(total_minutes / 60) → hours.
+                      * 2nd <Parameter>: round(total_minutes % 60) → remaining minutes.
+                    Example: 125 min → "2h5'"
+                -->
+                <PartText x="0" y="30" width="150" height="60" when="[COMPLICATION.HAS_DATA]">
+                    <Text align="CENTER" valign="BOTTOM" ellipsis="FALSE">
+                        <Font family="SYNC_TO_DEVICE" size="34" weight="BOLD" slant="NORMAL"
+                            color="[CONFIGURATION.themeColor.1]">
+                            <Template>%sh%s'
+                                <Parameter expression="floor(([COMPLICATION.RANGED_VALUE_VALUE]) / 60)"/>
+                                <Parameter expression="round(([COMPLICATION.RANGED_VALUE_VALUE]) % 60)"/>
+                            </Template>
+                        </Font>
+                    </Text>
+                </PartText>
+
+                <!--
+                    PROGRESS INFO LABEL (shown in active only when data exists)
+                    - Show the label "active" to help users understand this is the "active time" complication
+                -->
+                <PartText x="0" y="65" width="150" height="60" alpha="255" when="[COMPLICATION.HAS_DATA]">
+                    <Variant mode="AMBIENT" target="alpha" value="0" />
+                    <Text align="CENTER" valign="TOP" ellipsis="FALSE">
+                        <Font family="SYNC_TO_DEVICE" size="28" weight="BOLD" slant="NORMAL" color="[CONFIGURATION.themeColor.1]">
+                            <Template>active</Template>
+                        </Font>
+                    </Text>
+                </PartText>
+            </Complication>
+        </ComplicationSlot>
+
+        <!--
+            EXERCISE EMOJI/ICON COMPLICATION - Type: SHORT_TEXT
+            {Show a clickable icon or text with a red border, that opens an activity if clicked}
+            - x / y: position on the left-side of the watch face within the 450×450 canvas.
+            - width / height: size (px) of that bounding box; this slot is 110×110.
+            - slotId: unique numeric ID used by the system/app to reference this slot 1.
+            - name: internal identifier (developer-facing).
+            - displayName: human-readable name shown in UI/pickers.
+            - tapEnabled (true): tapping this slot triggers an action to open an Activity.java
+            - supportedTypes: This complication slot accepts SHORT_TEXT types
+        -->
+        <ComplicationSlot
+            x="60" y="80"
+            width="110" height="110"
+            slotId="1"
+            name="emoji_complication"
+            displayName="Emoji"
+            supportedTypes="SHORT_TEXT">
+
+            <!--
+                Default data sources (providers) for this complication slot.
+                - primaryProvider: the custom complication service, e.g. MyComplicationProviderService
+                - primaryProviderType: data format from that provider (SHORT_TEXT or a label or emoji).
+                - defaultSystemProvider: fallback system source (SUNRISE_SUNSET) if the custom one is unavailable.
+                - defaultSystemProviderType: data type expected from the system provider (also SHORT_TEXT).
+                → Default ensures this slot always shows a valid label, 1st a custom metric, 2nd a system fallback.
+            -->
+            <DefaultProviderPolicy
+                primaryProvider="com.example.kurtosisstudy/com.example.kurtosisstudy.complications.MyComplicationProviderService"
+                primaryProviderType="SHORT_TEXT"
+                defaultSystemProvider="SUNRISE_SUNSET"
+                defaultSystemProviderType="SHORT_TEXT" />
+
+            <!--
+                BoundingOval — circular clip/tap region with padding.
+                - Why padding (outlinePadding=2): this slot shows a non-ring graphic, so we inset the boundary for nicer spacing.
+                - Why BoundingOval: defines a circular touch target (needed for a reliable circular click action when tapEnabled="true").
+                - Is it required? Not strictly. If omitted, the slot’s rectangular bounds are used; include BoundingOval when you want a circular visual/tap area.
+            -->
+            <BoundingOval
+                x="0" y="0"
+                width="110" height="110"
+                outlinePadding="2" />
+
+            <!--
+                Label or emoji/icon complication.
+                - Only shown when there's data from the provider.
+                - Hidden in ambient mode.
+                - It's circular and its border is red.
+                - Label ("exercises"): small text to describe what the complication represents.
+            -->
+            <Complication type="SHORT_TEXT">
+                <!--
+                    DEFINE AN OUTER BORDER (only shown when there's data from the provider and when in {active} mode)
+                  - Variant: set alpha=0 in ambient mode to hide the border when idle.
+                  - Stroke: ring outline style; color from themeColor[6] (red), rounded ends, 10 px thick.
+                -->
+                <PartDraw x="0" y="0" height="110" width="110" when="[COMPLICATION.HAS_DATA]">
+                    <Variant mode="AMBIENT" target="alpha" value="0"/>
+                    <Arc
+                        direction="CLOCKWISE"
+                        startAngle="0"
+                        endAngle="360"
+                        centerX="55" centerY="55"
+                        width="100" height="100">
+                        <Stroke color="[CONFIGURATION.themeColor.6]" cap="ROUND" thickness="10" />
+                    </Arc>
+                </PartDraw>
+
+                <!--
+                    DISPLAY THE EMOJI/TEXT (only shown when there's data from the provider and when in {active} mode)
+                    - Variant: set alpha=0 in ambient mode to hide the EMOJI when idle.
+                    - Pull the text from the chosen provider
+                -->
+                <PartText x="0" y="0" width="110" height="110" when="[COMPLICATION.HAS_DATA]">
+                    <Variant mode="AMBIENT" target="alpha" value="0"/>
+                    <Text align="CENTER" ellipsis="TRUE">
+                        <Font family="SYSTEM" size="50" weight="NORMAL"
+                            slant="NORMAL" color="[CONFIGURATION.themeColor.2]">
+                            <Template>%s<Parameter expression="[COMPLICATION.TEXT]" /></Template>
+                        </Font>
+                    </Text>
+                </PartText>
+
+                <!--
+                    TEXT INFO LABEL (shown in active only when data exists)
+                    - Show the label "exercises" to help users understand this is the "exercise" complication
+                -->
+                <PartText x="0" y="75" width="110" height="90" when="[COMPLICATION.HAS_DATA]">
+                    <Variant mode="AMBIENT" target="alpha" value="0"/>
+                    <Text align="CENTER" ellipsis="TRUE">
+                        <Font family="SYNC_TO_DEVICE" size="20" weight="BOLD" slant="NORMAL" color="[CONFIGURATION.themeColor.6]">
+                            <Template>exercises</Template>
+                        </Font>
+                    </Text>
+                </PartText>
+            </Complication>
+        </ComplicationSlot>
+
+        <!--
+            WEAR TIME COMPLICATION - Type: RANGED_VALUE
+            {Show your daily watch wear time from 8am to 10pm (maximum is 14 hours) to motivate longer wear times.}
+            - x / y: position horizontally centered and above the progress circle within the 450×450 canvas.
+            - width / height: size (px) of that bounding box; this slot is 110×110.
+            - slotId: unique numeric ID used by the system/app to reference this slot 2.
+            - name: internal identifier (developer-facing).
+            - displayName: human-readable name shown in UI/pickers.
+            - tapEnabled (false): tapping this slot does not trigger any actions
+            - supportedTypes: This complication slot accepts RANGED_VALUE types
+        -->
+        <ComplicationSlot
+            x="170" y="20"
+            width="110" height="110"
+            slotId="2"
+            name="wear_time_ring"
+            displayName="Wear Time"
+            supportedTypes="RANGED_VALUE">
+
+            <!--
+               Default data sources (providers) for this complication slot.
+               - primaryProvider: the custom complication service from this app that supplies data
+                       → com.project.yourProjectName.complications.MyWearTimeComplicationProviderService
+               - primaryProviderType: data format from that provider (RANGED_VALUE = numeric progress with min/max).
+            -->
+            <DefaultProviderPolicy
+                primaryProvider="com.example.kurtosisstudy/com.example.kurtosisstudy.complications.MyWearTimeComplicationProviderService"
+                primaryProviderType="RANGED_VALUE"
+                defaultSystemProvider="STEP_COUNT"
+                defaultSystemProviderType="RANGED_VALUE" />
+
+            <BoundingOval
+                x="0" y="0"
+                width="110" height="110"
+                outlinePadding="2" />
+
+            <!--
+                Circular progress ring complication.
+                - Background ring: static full circle (gray-yellowish) shown behind the progress arc.
+                - Progress ring (active): dynamic arc whose length = value normalized from min(0h)→max(14h).
+                - Progress ring (ambient): not shown in ambient.
+                - Value (active): displays the current wear time as h'm format (e.g., 4h35').
+                - Value (ambient): not shown in ambient.
+                - Label ("wear time"): small text below the value to describe what the metric represents.
+            -->
+            <Complication type="RANGED_VALUE">
+                <!--
+                    BACKGROUND RING (only shown in active mode, but there will always be data from the provider)
+                  - Variant: set alpha=0 in ambient mode to hide the background ring when idle.
+                  - Arc: full 360° circle drawn clockwise.
+                  - Stroke: ring outline style; color from themeColor[7] (dark yellow), rounded ends, 10 px thick.
+                -->
+                <PartDraw x="0" y="0" width="110" height="110" alpha="255">
+                    <Variant mode="AMBIENT" target="alpha" value="0" />
+                    <Arc
+                        direction="CLOCKWISE"
+                        startAngle="0"
+                        endAngle="360"
+                        centerX="55" centerY="55"
+                        width="100" height="100">
+                        <Stroke color="[CONFIGURATION.themeColor.7]" cap="ROUND" thickness="10"/>
+                    </Arc>
+                </PartDraw>
+
+                <!--
+                     PROGRESS RING (Shown in active only)
+                   - Transform (target="endAngle"): computes how far the arc should sweep.
+                       * It NORMALIZES the ranged value to [0..1]:
+                           norm = ( clamp(value, min, max) - min ) / (max - min)
+                       * Then maps to degrees:
+                           endAngle = norm * 360
+                       * clamp(...) prevents overshoot/undershoot if the provider reports out-of-range values.
+                   - Stroke: ring outline style; color from themeColor[5] (bright yellow), rounded ends, 10 px thick.
+                 -->
+                <PartDraw x="0" y="0" width="110" height="110" alpha="255">
+                    <Variant mode="AMBIENT" target="alpha" value="0" />
+                    <Arc
+                        direction="CLOCKWISE"
+                        startAngle="0"
+                        centerX="55" centerY="55"
+                        width="100" height="100">
+                        <Transform
+                            target="endAngle"
+                            value="((clamp(([COMPLICATION.RANGED_VALUE_VALUE]), ([COMPLICATION.RANGED_VALUE_MIN]), ([COMPLICATION.RANGED_VALUE_MAX])) - ([COMPLICATION.RANGED_VALUE_MIN])) / (([COMPLICATION.RANGED_VALUE_MAX]) - ([COMPLICATION.RANGED_VALUE_MIN]))) * 360" />
+                        <Stroke color="[CONFIGURATION.themeColor.8]" cap="ROUND" thickness="10"/>
+                    </Arc>
+                </PartDraw>
+
+                <!--
+                    SMALL ICON (shows a watch icon to infer this is wear time)
+                    - Show an icon (watch emoji) to help users understand this is the "watch wear time" complication
+                -->
+                <PartText x="0" y="32" width="110" height="20" alpha="255">
+                    <Variant mode="AMBIENT" target="alpha" value="0" />
+                    <Text align="CENTER" ellipsis="TRUE">
+                        <Font family="SYSTEM" size="18" weight="BOLD" color="#FFFFFF">
+                            <Template>&#x231A;&#xFE0F;</Template>
+                        </Font>
+                    </Text>
+                </PartText>
+
+                <!--
+                    PROGRESS VALUE LABEL (shown in active only)
+                    - PartText: centered h'm display derived from RANGED_VALUE wear minutes.
+                    - <Template>: defines the displayed string ("%sh%s'").
+                      * 1st <Parameter>: floor(total_minutes / 60) → hours.
+                      * 2nd <Parameter>: round(total_minutes % 60) → remaining minutes.
+                    Example: 130 min → "2h10'"
+                -->
+                <PartText x="0" y="56" width="110" height="28" alpha="255">
+                    <Variant mode="AMBIENT" target="alpha" value="0" />
+                    <Text align="CENTER" ellipsis="TRUE">
+                        <Font family="SYNC_TO_DEVICE" size="24" weight="BOLD" slant="NORMAL" color="#FFFFFF">
+                            <Template>%sh%s'<Parameter expression="floor(([COMPLICATION.RANGED_VALUE_VALUE]) / 60)"/><Parameter expression="round(([COMPLICATION.RANGED_VALUE_VALUE]) % 60)"/></Template>
+                        </Font>
+                    </Text>
+                </PartText>
+
+                <!--
+                    WEAR TIME INFO LABEL (shown in active only when data exists)
+                    - Show the label "wear time" to help users understand this is the "wear time" complication
+                -->
+                <PartText x="0" y="75" width="110" height="90" alpha="255">
+                    <Variant mode="AMBIENT" target="alpha" value="0"/>
+                    <Text align="CENTER" ellipsis="TRUE">
+                        <Font family="SYNC_TO_DEVICE" size="20" weight="BOLD" slant="NORMAL" color="[CONFIGURATION.themeColor.8]">
+                            <Template>wear time</Template>
+                        </Font>
+                    </Text>
+                </PartText>
+            </Complication>
+        </ComplicationSlot>
+
+        <!--
+            BATTERY COMPLICATION - Type: RANGED_VALUE
+            {Show the remaining battery level}.
+            - x / y: position horizontally to the right and aligned vertically with "exercise" complication.
+            - width / height: size (px) of that bounding box; this slot is 110×110.
+            - slotId: unique numeric ID used by the system/app to reference this slot 3.
+            - name: internal identifier (developer-facing).
+            - displayName: human-readable name shown in UI/pickers.
+            - tapEnabled (false): tapping this slot does not trigger any actions
+            - supportedTypes: This complication slot accepts RANGED_VALUE types
+        -->
+        <ComplicationSlot
+            x="280" y="80"
+            width="110" height="110"
+            slotId="3"
+            name="battery_complication"
+            displayName="BatteryCompl"
+            supportedTypes="RANGED_VALUE">
+
+            <DefaultProviderPolicy
+                defaultSystemProvider="WATCH_BATTERY"
+                defaultSystemProviderType="RANGED_VALUE" />
+
+            <BoundingOval x="0" y="0" width="110" height="110" outlinePadding="2" />
+
+            <Complication type="RANGED_VALUE">
+                <!--
+                    BACKGROUND RING (only shown in active mode, but there will always be data from the provider)
+                  - Variant: set alpha=0 in ambient mode to hide the background ring when idle.
+                  - Arc: full 360° circle drawn clockwise.
+                  - Stroke: ring outline style; color from themeColor[9] (dark blue), rounded ends, 10 px thick.
+                -->
+                <PartDraw x="0" y="0" width="110" height="110" alpha="255">
+                    <Variant mode="AMBIENT" target="alpha" value="0" />
+                    <Arc
+                        direction="CLOCKWISE"
+                        startAngle="0"
+                        endAngle="360"
+                        centerX="55" centerY="55"
+                        width="100" height="100">
+                        <Stroke color="[CONFIGURATION.themeColor.9]" cap="ROUND" thickness="10"/>
+                    </Arc>
+                </PartDraw>
+
+                <!--
+                     PROGRESS RING (Shown in active only)
+                   - Transform (target="endAngle"): computes how far the arc should sweep.
+                       * It NORMALIZES the ranged value to [0..1]:
+                           norm = ( clamp(value, min, max) - min ) / (max - min)
+                       * Then maps to degrees:
+                           endAngle = norm * 360
+                       * clamp(...) prevents overshoot/undershoot if the provider reports out-of-range values.
+                   - Stroke: ring outline style; color from themeColor[5] (bright blue), rounded ends, 10 px thick.
+                 -->
+                <PartDraw x="0" y="0" width="112" height="112" alpha="255">
+                    <Variant mode="AMBIENT" target="alpha" value="0" />
+                    <Arc
+                        direction="CLOCKWISE"
+                        startAngle="0"
+                        centerX="55" centerY="55"
+                        width="100" height="100">
+                        <Transform
+                            target="endAngle"
+                            value="((clamp(([COMPLICATION.RANGED_VALUE_VALUE]), ([COMPLICATION.RANGED_VALUE_MIN]), ([COMPLICATION.RANGED_VALUE_MAX])) - ([COMPLICATION.RANGED_VALUE_MIN])) / (([COMPLICATION.RANGED_VALUE_MAX]) - ([COMPLICATION.RANGED_VALUE_MIN]))) * 360" />
+                        <Stroke color="[CONFIGURATION.themeColor.10]" cap="ROUND" thickness="10"/>
+                    </Arc>
+                </PartDraw>
+
+                <!--
+                    SMALL ICON (shows a battery icon to infer this is remaining battery level)
+                    - Show an icon (battery) to help users understand this is the "battery" complication
+                -->
+                <PartText x="0" y="32" width="110" height="24" alpha="255">
+                    <Variant mode="AMBIENT" target="alpha" value="0" />
+                    <Text align="CENTER" ellipsis="TRUE">
+                        <Font family="SYSTEM" size="18" weight="BOLD" color="#FFFFFF">
+                            <Template>🔋</Template>
+                        </Font>
+                    </Text>
+                </PartText>
+
+                <!--
+                    BATTERY VALUE LABEL (shown in active only)
+                    - PartText: centered % display derived from RANGED_VALUE battery provider (system).
+                    - <Template>: defines the displayed string ("%s%%").
+                -->
+                <PartText x="0" y="56" width="110" height="36" alpha="255">
+                    <Variant mode="AMBIENT" target="alpha" value="0" />
+                    <Text align="CENTER" ellipsis="TRUE">
+                        <Font family="SYNC_TO_DEVICE" size="24" weight="BOLD" slant="NORMAL" color="#FFFFFF">
+                            <Template>%s%%<Parameter expression="round([COMPLICATION.RANGED_VALUE_VALUE])"/></Template>
+                        </Font>
+                    </Text>
+                </PartText>
+
+                <!--
+                   BATTERY INFO LABEL (shown in active only)
+                    - Show the label "battery" to help users understand this is the "battery" complication
+                -->
+                <PartText x="0" y="75" width="110" height="90" alpha="255">
+                    <Variant mode="AMBIENT" target="alpha" value="0" when="[COMPLICATION.HAS_DATA]"/>
+                    <Text align="CENTER" ellipsis="TRUE">
+                        <Font family="SYNC_TO_DEVICE" size="20" weight="BOLD" slant="NORMAL" color="[CONFIGURATION.themeColor.10]">
+                            <Template>battery</Template>
+                        </Font>
+                    </Text>
+                </PartText>
+            </Complication>
+        </ComplicationSlot>
+
+        <!--
+          CLOCK & DATE STACK
+            Styling: ACTIVE uses weight="NORMAL"; AMBIENT uses weight="THIN" for low-power clarity.
+        -->
+        <Group x="0" y="0" width="450" height="450" name="clock_stack">
+            <!-- TIME -->
+            <DigitalClock x="0" y="0" width="450" height="450">
+                <!-- Active -->
+                <TimeText
+                    format="hh:mm"
+                    hourFormat="SYNC_TO_DEVICE"
+                    align="CENTER"
+                    x="0" y="280" width="450" height="120"
+                    alpha="255">
+                    <Variant mode="AMBIENT" target="alpha" value="0"/>
+                    <Font family="SYNC_TO_DEVICE" size="108" weight="NORMAL" slant="NORMAL" color="#FFFFFFFF"/>
+                </TimeText>
+                <!-- Thinner in Ambient -->
+                <TimeText
+                    format="hh:mm"
+                    hourFormat="SYNC_TO_DEVICE"
+                    align="CENTER"
+                    x="0" y="280" width="450" height="120"
+                    alpha="0">
+                    <Variant mode="AMBIENT" target="alpha" value="255"/>
+                    <Font family="SYNC_TO_DEVICE" size="108" weight="THIN" slant="NORMAL" color="#FFFFFFFF"/>
+                </TimeText>
+            </DigitalClock>
+
+            <!-- DATE (active) -->
+            <PartText x="0" y="375" width="450" height="50" alpha="255">
+                <Variant mode="AMBIENT" target="alpha" value="0"/>
+                <Localization calendar="GREGORIAN" timeZone="SYNC_TO_DEVICE"/>
+                <Text align="CENTER" ellipsis="FALSE">
+                    <Font family="SYNC_TO_DEVICE" size="34" weight="NORMAL" slant="NORMAL" color="#FFFFFFFF">
+                        <Template>%s %s %s
+                            <Parameter expression="[DAY_OF_WEEK_F]"/>
+                            <Parameter expression="[DAY]"/>
+                            <Parameter expression="[MONTH_S]"/>
+                        </Template>
+                    </Font>
+                </Text>
+            </PartText>
+
+            <!-- DATE (ambient) -->
+            <PartText x="0" y="375" width="450" height="50" alpha="0">
+                <Variant mode="AMBIENT" target="alpha" value="255"/>
+                <Localization calendar="GREGORIAN" timeZone="SYNC_TO_DEVICE"/>
+                <Text align="CENTER" ellipsis="FALSE">
+                    <Font family="SYNC_TO_DEVICE" size="34" weight="THIN" slant="NORMAL" color="#FFFFFFFF">
+                        <Template>%s %s %s
+                            <Parameter expression="[DAY_OF_WEEK_F]"/>
+                            <Parameter expression="[DAY]"/>
+                            <Parameter expression="[MONTH_S]"/>
+                        </Template>
+                    </Font>
+                </Text>
+            </PartText>
+        </Group>
+
+        <!--
+            RESTART APP COMPLICATION - Type: SHORT_TEXT
+            {Show a clickable text within a green circle, that restarts the main activity if clicked}
+            - slotId: unique numeric ID used by the system/app to reference this slot 4.
+            - tapEnabled (true): tapping this slot triggers an action to open MainActivity.java
+            - supportedTypes: This complication slot accepts SHORT_TEXT types
+            - Since it is defined last, it will show above the other complications and elements
+        -->
+        <ComplicationSlot
+            x="150" y="310"
+            width="150" height="150"
+            slotId="4"
+            name="RESTART_complication"
+            displayName="Restart"
+            tapEnabled="true"
+            supportedTypes="SHORT_TEXT">
+
+            <DefaultProviderPolicy
+                primaryProvider="com.example.kurtosisstudy/com.example.kurtosisstudy.complications.MyServiceAliveCheckComplicationProviderService"
+                primaryProviderType="SHORT_TEXT" />
+
+            <BoundingOval x="0" y="0" width="150" height="150" outlinePadding="0" />
+
+            <Complication type="SHORT_TEXT">
+                <!--
+                    Add a border in gray color
+                -->
+                <PartDraw x="0" y="0" width="150" height="150" alpha="255" when="[COMPLICATION.HAS_DATA]">
+                    <Arc
+                        direction="CLOCKWISE"
+                        startAngle="0"
+                        endAngle="360"
+                        centerX="75" centerY="75"
+                        width="150" height="150">
+                        <Stroke color="[CONFIGURATION.themeColor.0]" cap="ROUND" thickness="20" />
+                    </Arc>
+                </PartDraw>
+                <!--
+                    Fill the circle with green color
+                -->
+                <PartDraw x="0" y="0" width="150" height="150" when="[COMPLICATION.HAS_DATA]">
+                    <Arc
+                        direction="CLOCKWISE"
+                        startAngle="0"
+                        endAngle="360"
+                        centerX="75" centerY="75"
+                        width="150" height="150">
+                        <Fill color="[CONFIGURATION.themeColor.1]" />
+                    </Arc>
+                </PartDraw>
+                <!--
+                    Add a label from the complication provider TEXT in color light gray
+                -->
+                <PartText x="0" y="0" width="150" height="150" when="[COMPLICATION.HAS_DATA]" >
+                    <Text align="CENTER" valign="MIDDLE" ellipsis="TRUE">
+                        <Font family="SYSTEM" size="30" weight="BOLD" slant="NORMAL" color="[CONFIGURATION.themeColor.2]">
+                            <Template>%s<Parameter expression="[COMPLICATION.TEXT]" /></Template>
+                        </Font>
+                    </Text>
+                </PartText>
+            </Complication>
+        </ComplicationSlot>
+
+
+
+
+    </Scene>
+</WatchFace>

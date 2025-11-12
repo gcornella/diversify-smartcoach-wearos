@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Declare Wear OS device -->
+    <uses-feature android:name="android.hardware.type.watch" />
+
+    <!-- WFF v1 → min/target 33; use 34 for WFF v2 -->
+    <uses-sdk
+        android:minSdkVersion="33"
+        android:targetSdkVersion="33" />
+
+    <application
+        android:label="watchface"
+        android:icon="@mipmap/ic_launcher"
+        android:theme="@android:style/Theme.DeviceDefault"
+        android:hasCode="false">
+
+        <!-- Stand-alone watch-face APK (no phone companion) -->
+        <meta-data
+            android:name="com.google.android.wearable.standalone"
+            android:value="true" />
+
+        <!-- Declare that this APK contains Watch Face Format resources -->
+        <property
+            android:name="com.google.wear.watchface.format.version"
+            android:value="1" />
+    </application>
+
+</manifest>
