@@ -5,7 +5,7 @@
 It measures active time via GMAC and introduces ADEM (Active & Diverse Exploratory Movement), a diversity-focused metric leveraging kurtosis and standard deviation of the wrist-tilt range, in combination with a sustained activity. 
 Below is a concise guide to understand the app. This documentation includes recommendations and tips for developers aiming to build similar applications.
 
-- Main watch face and activities: ![Pipeline overview](docs/mainWatchFigure.png)
+![MAIN overview](docs/mainWatchFigure.png)
 
 ---
 
@@ -37,8 +37,8 @@ KurtosisStudy
 ## app/
 
 **Main Application (WearOS)**
-- Summary of the App files: ![Pipeline overview](docs/diversifyPipeline.png)
-- 
+![Pipeline overview](docs/diversifyPipeline.png)
+
 ---
 
 ### 🕹️️ MainActivity
@@ -85,12 +85,12 @@ KurtosisStudy
 
 ### 🧰 ComputationManager
 * **Role:** Streams and scores movement in real time: computes GMAC (active movement) and ADEM (kurtosis + STD + GMAC).
-* - Angles measured by the watch: ![Pipeline overview](docs/anglesPlots.png)
+* Angles measured by the watch: ![Pipeline overview](docs/anglesPlots.png)
 * **Windowing:** Uses a rolling 3000-sample window (~60 s at 50 Hz) with numerically safe online updates.
 * **computeGMAC:** Combines movement (computeActivity: HP-filtered magnitude + moving average) and forearm inclination (computeInclination: with hysteresis). Returns u_gmac flag (1 if active).
 * **computeADEM:** Sliding-window std and kurtosis with guards; diversity decision requires: kurtosis < kappa_th, meanGMAC > lambda_th, and stdDeg > angl_th. Returns u_adem flag (1 if diverse)
-- GMAC figure: ![Pipeline overview](docs/GMAC_fig.png)
-- ADEM figure: ![Pipeline overview](docs/ADEM_fig.png)
+- GMAC figure: ![GMAC overview](docs/GMAC_fig.png)
+- ADEM figure: ![ADEM overview](docs/ADEM_fig.png)
 
 ### 🔐 DataStorageManager
 * **Role:** Central I/O + analytics layer. Rotates a daily Room DB per date and maintains a cross-day MainResults DB; exposes cached values via SharedPreferences.
@@ -121,7 +121,8 @@ KurtosisStudy
 * Shows a random exercise GIF (avoiding immediate repeats) and saves its ID and timestamp in SharedPreferences.
 * The "Done" button lets the user switch to the next exercises after the exercise has been finished.
 * Keeps the screen awake for a ~3-minute window to avoid it turning idle or black.
-
+![Exercise overview](docs/exerciseScreen.png)
+- 
 ###  🪵️ LogSaver
 * Asynchronously logs messages to Android’s Logcat (level-aware).
 * Also saves logs into the app’s Room DailyDatabase. If the daily database isn’t ready/open, it buffers log entries in memory and flushes them to the DB once available.
@@ -231,7 +232,7 @@ Source code for the custom watchface and complications is in this repo:
 **https://github.com/gcornella/Diversify_WatchFaceComplications**
 
 **New watchface and complications**
-- Overview: ![Pipeline overview](docs/IMG_6589.PNG)
+- Overview: ![COMPLICATIONS overview](docs/complications.png)
 
 ###  🛠️️ Complications overview
 Although more details are available on the watchface repo, here goes a summary:
