@@ -43,13 +43,30 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.Executors;
 
-/**
- * Cloud upload UI:
- * - HOTSPOT & HOME WI-FI supported (no WorkManager network constraint; UI still requires Wi-Fi).
- * - Blocks button only when RUNNING; cancels ENQUEUED job and enqueues fresh.
- * - REPLACE policy + cancelUniqueWork() to avoid getting stuck.
- * - Expedited work start; progress shown; rows marked ✅ as items complete.
+/*
+ * CloudStorageActivity
+ * --------------------
+ * Purpose:
+ *   - UI screen to upload the Main DB + recent Daily DBs to Firebase Storage.
+ *   - Shows which days are pending, starts an upload, and displays progress.
+ *
+ * What it does:
+ *   • Loads USER_ID and scans local/remote DBs to build a "pending uploads" list.
+ *   • Requires Wi-Fi; if offline, shows a "Connect Wi-Fi" button and opens system settings.
+ *   • Uses a single unique WorkManager job (UNIQUE_WORK) to run DatabaseUploadWorker:
+ *       - Cancels stale ENQUEUED jobs.
+ *       - Enqueues a clean OneTimeWorkRequest (includeMain + dayKeys).
+ *       - Observes RUNNING/ENQUEUED/FINISHED and updates UI accordingly.
+ *   • Marks rows as done (“✅”) when worker reports PROG_ITEM_DONE.
+ *   • Applies a short cooldown after success (hides MAIN + TODAY temporarily).
+ *   • After a successful upload started from this screen, auto-returns to previous Activity.
+ *
+ * Requirements:
+ *   • Layout must contain: listContainer, textStatus, btnUploadDb, btnRefresh, btnBack.
+ *   • DatabaseUploadWorker must accept includeMain + dayKeys and report progress.
+ *   • Firebase Storage bucket must follow expected folder structure (apps/<appId>/users/<id>/...).
  */
+
 public class CloudStorageActivity extends AppCompatActivity {
 
     private static final String TAG = "CloudStorage_KurtosisStudy";

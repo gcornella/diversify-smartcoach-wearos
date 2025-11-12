@@ -43,6 +43,48 @@ import com.example.kurtosisstudy.db.DailyCumulativeEntity;
 import com.example.kurtosisstudy.db.DailyDatabase;
 import com.example.kurtosisstudy.db.MainResultsDatabase;
 import com.example.kurtosisstudy.receivers.HeartbeatCheckWorker;
+/*
+ * MainActivity — Core Summary (Ultra-Short)
+ * ----------------------------------------
+ * PURPOSE:
+ *   • Launches & monitors the ForegroundSensorService (50 Hz sensing + wear detection).
+ *   • Shows TODAY’s active minutes + dynamic daily goal.
+ *   • Keeps the app alive under Wear OS battery/Doze restrictions.
+ *
+ * KEY FUNCTIONS:
+ *   1) Service Control
+ *      - Starts FGS on launch/resume (idempotent).
+ *      - Uses heartbeat timestamp to check if service is alive (FRESH_MS window).
+ *      - Updates background color + text depending on running state.
+
+ *   2) Live UI Updates (Room LiveData)
+ *      - Observes DailyCumulative → updates progress ring + “active time”.
+ *      - Observes AdjustedDailyGoal → updates ring max.
+ *      - Week logic:
+ *          week 1 or ≥6 ⇒ hide ring (just-wear phase)
+ *          weeks 2–5 → show active-minutes progress.
+
+ *   3) Complications
+ *      - On startup/resume: forces refresh of progress, wear time, and service-alive complications.
+
+ *   4) Permissions & System Survival
+ *      - Requests BODY_SENSORS + POST_NOTIFICATIONS.
+ *      - Asks user to ignore battery optimizations (keeps FGS alive).
+ *      - Schedules HeartbeatCheckWorker (periodic restart if FGS dies).
+
+ *   5) Admin & Settings
+ *      - Simple password gate → open SettingsActivity & handedness changes.
+ *      - Hard-coded user setup (temporary for study).
+
+ *   6) Extra
+ *      - Manual DB reads on resume ensure instant UI correctness.
+ *      - Hidden debug buttons for start/stop/data export.
+ *
+ * Essence:
+ *   A small dashboard ensuring the sensor service runs reliably,
+ *   reflects real-time movement progress, handles permissions/power rules,
+ *   and keeps complications + UI synced.
+ */
 
 public class MainActivity extends AppCompatActivity {
 

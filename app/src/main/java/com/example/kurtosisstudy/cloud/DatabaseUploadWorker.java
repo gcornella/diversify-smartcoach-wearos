@@ -45,14 +45,40 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Uploads main + daily DBs; robust to missing days; foreground + expedited friendly.
- *  - Main: always overwrite.
- *  - Daily: idempotent via SHA; skip identical.
- *  - Safe metadata probes (404 -> absent, no throw).
- *  - Per-day try/catch so one bad day doesn't fail the run.
- *  - Prunes local daily DBs >14 days old only if cloud has the zip.
+/*
+ * DatabaseUploadWorker
+ * --------------------
+ * Purpose:
+ *   - WorkManager Worker that uploads the Main DB + selected Daily DBs to Firebase Storage.
+ *   - Runs as a foreground, expedited-safe job with progress reporting and pruning.
+ *
+ * What it does:
+ *   • Reads:
+ *       - USER_ID (PrefsKeys.Settings.USER_ID)
+ *       - includeMain (KEY_INCLUDE_MAIN)
+ *       - dayKeys[] (KEY_DAY_KEYS, yyyy_MM_dd).
+ *   • Ensures FirebaseAuth (anonymous sign-in if needed).
+ *   • MAIN:
+ *       - Zips main_results_db_<USER_ID> (+ WAL/SHM + meta.json).
+ *       - Always overwrites cloud object apps/<appId>/users/<id>/main/.
+ *   • DAILY:
+ *       - For each dayKey, zips User<id>_<dayKey> (+ WAL/SHM + meta.json).
+ *       - Computes SHA-256 and compares with cloud metadata (contentSha256).
+ *       - Uploads only if different → idempotent uploads.
+ *   • Progress:
+ *       - Calls setForegroundAsync(...) with a small “Uploading…” notification.
+ *       - Reports PROG_ITEM_DONE ("MAIN" or dayKey) and PROG_PERCENT (0–100).
+ *   • On success:
+ *       - Saves LAST_CLOUD_UPLOAD_TIME in PREFS.
+ *       - Calls pruneLocalDailyDatabasesOlderThanAgeCloudSafe(...) to delete
+ *         local daily DBs older than AGE_DAYS *only if* their .zip exists in cloud.
+ *
+ * Notes:
+ *   • Each daily upload is wrapped in try/catch so a single bad day doesn’t fail the whole job.
+ *   • ForegroundInfo uses FOREGROUND_SERVICE_TYPE_DATA_SYNC for Android Q+.
+ *   • Storage layout: apps/<appId>/users/<userId>/(main|days)/*.zip with JSON metadata inside.
  */
+
 public class DatabaseUploadWorker extends Worker {
 
     private static final String TAG = "CloudStorage_KurtosisStudy";

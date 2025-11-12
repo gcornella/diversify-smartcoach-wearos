@@ -40,6 +40,127 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+/*
+ * ForegroundSensorService
+ * -----------------------
+ * Purpose:
+ *   - Long-lived Wear OS foreground service that:
+ *       • Collects 50 Hz sensor data when the watch is worn AND within active hours.
+ *       • Tracks wear / not-wear episodes.
+ *       • Periodically aggregates data into per-minute, daily, and weekly metrics.
+ *       • Drives goal + wear-time notifications and complications.
+ *       • Self-heals if executors or sensors die (watchdog).
+ *
+ * Main components:
+ *   • SensorHandler sensorHandler
+ *       - Handles accelerometer at ~50 Hz.
+ *       - Started/stopped depending on wear state + active hours.
+ *
+ *   • WatchWearDetector wearDetector
+ *       - Listens to OFFBODY + HR to decide if the watch is worn.
+ *       - Persists wear sessions to DB via DataStorageManager.
+ *
+ *   • Heartbeat (hbHandler + hbTick)
+ *       - Writes HEARTBEAT_TIME to shared prefs every 60 s.
+ *       - RestartReceiver / HeartbeatCheckWorker use this to detect if the service died.
+ *       - onStartCommand() writes an immediate heartbeat and, if the last one is “stale”,
+ *         closes the previous ON segment (saveWearStateToDatabaseAt(false, lastHb + 1))
+ *         and forces wear state back to UNKNOWN so WatchWearDetector re-validates.
+ *
+ *   • Wake lock
+ *       - acquireWakeLock(): keeps CPU on (PARTIAL_WAKE_LOCK) so periodic tasks and
+ *         sensor collection continue with screen off.
+ *       - releaseWakeLock(): called in onDestroy() to avoid battery leaks.
+ *
+ *   • Schedulers (all single-threaded executors)
+ *       - periodicCheckScheduler (every 60 s)
+ *           · Checks:
+ *               · Active hours? (08:00–22:00)
+ *               · Is watch worn? (via wearDetector)
+ *               · New calendar day? → DataStorageManager.init(...) + saveWearStateToDatabase.
+ *               · Battery state every 10 min (charging + battery % logging).
+ *           · Logic:
+ *               · If within hours AND worn → start SensorHandler (if not already),
+ *                 ensure DataStorageManager + NotificationManager are running,
+ *                 and dismiss “not worn” notification.
+ *               · If within hours BUT not worn → show “watch not worn” notification,
+ *                 stop SensorHandler, stop NotificationManager.
+ *               · Outside hours → stop SensorHandler + NotificationManager.
+ *
+ *       - dataStorageScheduler (aligned to minute, then every 1 min)
+ *           · Runs only if within active hours.
+ *           · If watch is worn:
+ *               · Uses one minute of data (2 minutes before computation call) of raw data to:
+ *                   · computeAndSaveMinuteAverage(...)
+ *                   · computeAndSaveDailyCumulative()
+ *                   · computeAndSaveDailyWearTime()
+ *           · Every 5 min:
+ *               · computeAndSaveAdjustedDailyGoal() (movement goal based on weekly ratio
+ *                 and current wear time).
+ *           · Every 60 min:
+ *               · computeAndSaveWeeklyAverage()
+ *               · createAndSaveWeeklyRatios()
+ *           · Persists LAST_WEAR_TIME and LAST_HOURLY_SAVE to prefs.
+ *
+ *       - notificationScheduler (every 1 min, initial delay 35 s)
+ *           · Only runs in active hours.
+ *           · Calls GoalNotificationManager.notifyIfGoalReached(...) to push progress
+ *             notifications (second-study behavior is guarded by TODO comments).
+ *
+ *       - watchdogScheduler (every 60 min)
+ *           · Ensures all three schedulers are alive; recreates them if shutdown.
+ *           · Every ~50 min:
+ *               · Refreshes WatchWearDetector (stop/start).
+ *               · Refreshes SensorHandler (stop + mark inactive).
+ *               · Updates LAST_SENSOR_CHECK in prefs.
+ *
+ *   • Service lifecycle:
+ *       - onCreate():
+ *           · Creates notification channel.
+ *           · Initializes DataStorageManager and study start timestamp.
+ *       - onStartCommand():
+ *           · Starts foreground notification (health FGS type where supported).
+ *           · Loads last heartbeat and detects “cold start” after long downtime.
+ *           · Ensures:
+ *               · DataStorageManager.init(...)
+ *               · initializeLastKnownProgress()
+ *               · initializeLastKnownGoal()
+ *           · Cancels “resume app” notification from RestartReceiver.
+ *           · Refreshes complications: wear time, progress, and “service alive”.
+ *           · Acquires wake lock.
+ *           · Restores “last run” timestamps for wear time, hourly saves, sensor checks, battery.
+ *           · Fixes stale wear state if service died while watch was ON.
+ *           · Starts heartbeat loop, SensorHandler, WatchWearDetector, watchdog,
+ *             periodic check, data storage, and notification managers.
+ *           · Returns START_STICKY so the system restarts it after kill.
+ *
+ *       - onDestroy():
+ *           · Removes foreground notification.
+ *           · Forces wear prefs to OFF + UNKNOWN and logs to DB.
+ *           · Stops heartbeat, releases wake lock.
+ *           · Shuts down SensorHandler + WatchWearDetector.
+ *           · Shuts down all schedulers (watchdog, periodic, data, notifications).
+ *
+ *       - onTaskRemoved():
+ *           · Schedules HeartbeatCheckWorker so WorkManager can decide on restart.
+ *
+ *   • Notifications:
+ *       - buildNotification():
+ *           · Simple “App working / Service running” foreground card.
+ *           · Tapping opens MainActivity with flags suitable for Wear.
+ *       - dismissNotWornNotification():
+ *           · Cancels “not worn” notification and associated NotWornAlarmReceiver alarm.
+ *
+ *   • Channels:
+ *       - createNotificationChannel():
+ *           · Creates NOTIF_CHANNEL_ID with IMPORTANCE_HIGH (can lower for 2nd study).
+ *
+ * Overall:
+ *   - This class is the brain of the runtime system: it orchestrates sensors, wear detection,
+ *     aggregation, goals, notifications, and complications, and it aggressively self-repairs
+ *     (recreating executors and re-registering sensors) to survive watch quirks, reboots,
+ *     and background kills.
+ */
 
 public class ForegroundSensorService extends Service{
 

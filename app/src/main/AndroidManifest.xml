@@ -19,7 +19,6 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
 
-
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -80,23 +79,20 @@
             </intent-filter>
         </receiver>
 
-        <!--Restart Receiver AlarmManager -->
+        <!-- Restart Receiver AlarmManager -->
         <receiver
             android:name=".receivers.RestartReceiver"
             android:enabled="true"
             android:exported="false"
             android:directBootAware="true" />
 
-
+        <!-- Not worn -->
         <receiver android:name=".receivers.NotWornAlarmReceiver" android:exported="true" />
-
-
 
         <!-- Foreground Service: only for Android Version <= 14 write: -->
         <service
             android:name=".ForegroundSensorService"
             android:foregroundServiceType="health">
-
         </service>
 
         <service
@@ -105,7 +101,6 @@
             android:foregroundServiceType="dataSync"/>
 
         <!-- Complication Service -->
-        <!-- Complication Data Source (AndroidX) -->
         <service
             android:name=".complications.MyComplicationProviderService"
             android:exported="true"
@@ -113,7 +108,6 @@
             android:label="Kurtosis Emoji"
             android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER"
             android:directBootAware="true">
-
 
             <!-- Legacy action (some pickers still probe this) -->
             <intent-filter>
@@ -129,7 +123,6 @@
                 android:value="0" />
         </service>
 
-
         <!-- Complication Restart -->
         <service
             android:name=".complications.MyServiceAliveCheckComplicationProviderService"
@@ -138,7 +131,6 @@
             android:label="Kurtosis Restart"
             android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER"
             android:directBootAware="true">
-
 
             <!-- Legacy action (some pickers still probe this) -->
             <intent-filter>
@@ -163,12 +155,10 @@
             android:directBootAware="true"
             android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
 
-
             <!-- Legacy action (some pickers still probe this) -->
             <intent-filter>
                 <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" />
             </intent-filter>
-
 
             <!-- Legacy metadata (safe to include for discovery) -->
             <meta-data
@@ -201,12 +191,5 @@
                 android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS"
                 android:value="0" />
         </service>
-
-
-
-
-
-
     </application>
-
 </manifest>

@@ -47,6 +47,105 @@ import java.util.concurrent.RejectedExecutionException;
 import java.time.*;
 import java.time.temporal.ChronoUnit;
 
+/*
+ * DataStorageManager
+ * ------------------
+ * Purpose:
+ *   - Central hub for all persistent data in Diversify.
+ *   - Owns the per-day DailyDatabase, the per-user MainResultsDatabase, and a single
+ *     analytics executor to keep all heavy DB work off the main thread.
+ *
+ * What it does:
+ *   • Initialization (per user + per day):
+ *       - init(context):
+ *           · Reads USER_ID from SETTINGS_PREFS.
+ *           · Detects user changes and resets per-user prefs (week, study start, db name).
+ *           · Opens/creates main_results_db_<USER_ID>.
+ *           · Opens/creates today’s DailyDatabase: "User<USER_ID>_yyyy_MM_dd".
+ *           · Keeps CURRENT_DB_NAME, TODAY_DATE and WEEK_ID in PrefsKeys.Data.
+ *       - shouldReinitializeDailyDb():
+ *           · Returns true if the calendar day changed (FGS can then call init(...) again).
+ *
+ *   • Executor management:
+ *       - ensureAnalyticsExecutorAlive():
+ *           · Guarantees a live single-thread executor for all analytics/DB tasks.
+ *           · All public “computeAndSave…” methods use this executor.
+ *
+ *   • Study timeline & weeks:
+ *       - startStudyTimestamp():
+ *           · Ensures StudyMetaEntity exists with a startOfStudyTimestamp/date.
+ *           · Mirrors STUDY_START_TIME to prefs for fast cold-start week computation.
+ *       - computeWeekFromDb():
+ *           · Computes weekNumber from [startOfStudyDate → today] using java.time.
+ *       - scheduleWeekRefreshAsync():
+ *           · Updates WEEK_ID in prefs based on DB + prefs (never moves backwards).
+ *           · Triggers complication updates when the week changes.
+ *       - getWeekFromPrefs():
+ *           · Returns cached WEEK_ID (default 1).
+ *
+ *   • “Last known” values in SharedPreferences:
+ *       - initializeLastKnownProgress():
+ *           · Reads today’s DailyCumulative entry from mainResultsDb and caches LAST_KNOWN_PROGRESS.
+ *       - initializeLastKnownGoal():
+ *           · Reads latest AdjustedDailyGoalEntity from the daily DB and caches LAST_KNOWN_GOAL.
+ *
+ *   • Wear sessions & notifications:
+ *       - saveWearStateToDatabase(isWorn) / saveWearStateToDatabaseAt(isWorn, whenMillis):
+ *           · Append WearSessionEntity entries (timestamp, day string, worn flag).
+ *       - getLastNotWornTimestampToday():
+ *           · Returns the most recent “not worn” timestamp for today (or -1).
+ *       - saveNotificationTimestamp(level, message):
+ *           · Logs notification display events to NotificationEntity.
+ *
+ *   • Short-term activity queries:
+ *       - getActivityDuringPrev30Minutes():
+ *           · Sums MinuteAverageEntity entries over the last 30 min in the daily DB.
+ *           · Returns true if ≥ 6 minutes active, false otherwise.
+ *       - getCumulative30MinsBefore():
+ *           · Returns DailyCumulative.cumulative value closest to 30 min ago.
+ *
+ *   • High-rate sensor data:
+ *       - snapshotAndSaveBuffers(...):
+ *           · Takes snapshots of the 50 Hz circular buffers (timestamps, accel, angle,
+ *             inclination, std, rawKurtosis, rawGMAC, kurtosis flag, activity flag).
+ *           · Bulk-inserts them as SensorSampleEntity rows into the daily DB.
+ *
+ *   • Daily aggregates:
+ *       - computeAndSaveMinuteAverage(start, end, alignedMinute):
+ *           · Reads SensorSampleEntity rows in [start, end).
+ *           · Converts GMAC/kurtosis flags into “active seconds” and “secondary” seconds.
+ *           · Upserts a MinuteAverageEntity for that aligned minute.
+ *       - computeAndSaveDailyCumulative():
+ *           · Sums all MinuteAverage entries for today → movement & secondary minutes.
+ *           · Saves DailyCumulativeEntity into mainResultsDb.
+ *           · Updates LAST_KNOWN_PROGRESS and refreshes MyProgressComplicationProviderService.
+ *       - computeAndSaveDailyWearTime():
+ *           · Uses WearSessionEntity (08:00–22:00 window) to compute worn/not-worn minutes.
+ *           · Inserts/updates DailyWearTimeEntity and refreshes MyWearTimeComplicationProviderService.
+ *
+ *   • Weekly metrics & goals:
+ *       - computeAndSaveWeeklyAverage():
+ *           · For current week, fetches all DailyWearTime + DailyCumulative entries.
+ *           · Computes a weighted movement-per-wear ratio (goalAchieved) across valid days.
+ *           · Saves WeeklyAverageEntity.
+ *       - createAndSaveWeeklyRatios():
+ *           · Generates or reuses a WeeklyRatioEntity for each week:
+ *               · Week 1: baseline (0f).
+ *               · Week 2: based on week 1’s goalAchieved * 1.25f.
+ *               · Later weeks: increase if previous week met goal, decrease otherwise.
+ *           · Writes LAST_KNOWN_RATIO to prefs.
+ *       - computeAndSaveAdjustedDailyGoal():
+ *           · Uses WeeklyRatio.ratioValue + today’s wear pattern (08:00–22:00) to project
+ *             an adjusted daily movement goal (with ≥8h wear floor).
+ *           · Saves AdjustedDailyGoalEntity in the daily DB and updates LAST_KNOWN_GOAL.
+ *           · Triggers MyProgressComplicationProviderService refresh.
+ *
+ *   • Shutdown:
+ *       - shutdown():
+ *           · Gracefully shuts down the analytics executor (waits up to 2s).
+ *           · Closes daily and main Room databases if open.
+ */
+
 public class DataStorageManager {
     // Define context and shared preferences
     private static Context appContext;
@@ -54,18 +153,6 @@ public class DataStorageManager {
 
     // Tag used for logging/debugging
     private static final String TAG = "DataStorageManager_KurtosisStudy";
-
-    // inject if this varies per user
-    // My watch kurt is 10004,
-    // my watch active was 66002, now good one 70005;
-    // ryan 1001
-    // brent 5002
-    // brent new 1111 - 5002
-    // bob 7005
-    // yunp new 9001 -6002
-    // RAMC 12345
-    // HINW 4001
-    // GALJ 4321
 
     // Select an id to differentiate between subjects
     private static int NEW_USER_ID = 1;
@@ -79,7 +166,6 @@ public class DataStorageManager {
     private static ExecutorService analyticsExecutor = Executors.newSingleThreadExecutor();
     // Use synchronized to prevent race conditions if multiple methods try to check/recreate the executor at the same time.
     private static final Object executorLock = new Object();
-
 
     // Class initialization
     public static synchronized void init(Context context) {

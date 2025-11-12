@@ -26,6 +26,62 @@ import java.util.concurrent.TimeUnit;
 
 import com.example.kurtosisstudy.PrefsKeys;
 
+/*
+ * GoalNotificationManager — Summary
+ * ---------------------------------
+ * Central controller for all notifications in the app:
+ *   • Daily goal / progress nudges (levels 1–4)
+ *   • “Watch not worn” reminders (level 5)
+ *   • Optional debug test notifications (hardPostTest)
+ *
+ * HOW IT WORKS
+ * ------------
+ * All public calls (notifyIfGoalReached / notificationIfWatchNotWorn)
+ * run on a background single-thread executor so UI/FGS threads never block.
+ *
+ * 1) Goal & Progress Notifications
+ * --------------------------------
+ * Sent only during the intervention weeks (week 2–5).
+ * Logic:
+ *   • Reset daily counters every new day.
+ *   • Max 10 notifications/day.
+ *   • Min 60 minutes between notifications.
+ *   • Only if watch is worn.
+ *   • Computes:
+ *       - Today's dynamic daily goal
+ *       - Expected progress slope since the last continuous worn segment
+ *       - Recent 30-min activity level
+ *   • Levels:
+ *       1 → First time reaching the daily goal
+ *       2 → On track but needs encouragement
+ *       3 → Behind the expected slope (inactive)
+ *       4 → Goal surpassed but currently inactive
+ *   • Records notification timestamps in the DB for analysis.
+ *
+ * 2) “Watch Not Worn” Notifications (level 5)
+ * ------------------------------------------
+ *   • Only after 10:00 AM.
+ *   • If watch was taken off for ≥30 minutes and last reminder ≥30 minutes ago.
+ *   • Sends a gentle message (“Wear me to earn 🏆”)
+ *   • Schedules a 1-second alarm as an optional fallback sound.
+ *
+ * 3) Debug Notification (hardPostTest)
+ * ------------------------------------
+ * Creates a fresh HIGH-importance channel every time
+ * and posts a simple test card to verify notification behavior on-watch.
+ *
+ * PREFS USED
+ * ----------
+ *   • NOTIF_PREFS → Goal state, counts, timestamps
+ *   • DATA_PREFS  → LAST_KNOWN_PROGRESS / LAST_KNOWN_GOAL
+ *   • WEAR_PREFS  → Current wear state & last not-worn notif time
+ *
+ * NOTES
+ * -----
+ *   • Always uses a notification channel (IMPORTANCE_HIGH).
+ *   • All heavy data access uses DataStorageManager (DB reads, cumulative values).
+ *   • All scheduling, filtering, and nudge logic is centralized here.
+ */
 
 public class GoalNotificationManager {
     private static final String TAG = "GoalNotificationManager_KurtosisStudy";

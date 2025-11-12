@@ -10,6 +10,38 @@ import com.example.kurtosisstudy.DataStorageManager;
 import com.example.kurtosisstudy.LogSaver;
 import com.example.kurtosisstudy.PrefsKeys;
 
+/*
+ * WatchWearDetector
+ * -----------------
+ * Purpose:
+ *   - Detects whether the watch is currently worn or off-wrist using the off-body + heart-rate sensors.
+ *   - Keeps a persistent wear state in SharedPreferences + database for use by the FGS and analytics.
+ *
+ * What it does:
+ *   • On start():
+ *       - Registers TYPE_LOW_LATENCY_OFFBODY_DETECT to get definitive on/off events.
+ *       - If wearState is STATE_UNKNOWN (e.g., after reboot), starts a short heart-rate resolver.
+ *   • Off-body sensor:
+ *       - Receives 1 = worn, 0 = not worn.
+ *       - Immediately stops the HR resolver (off-body is authoritative).
+ *       - Resolves UNKNOWN after reboot and ignores duplicate states.
+ *   • Heart-rate resolver:
+ *       - Runs only when state is UNKNOWN and HR sensor exists.
+ *       - If bpm > 0 and accuracy >= MEDIUM before timeout → assumes watch is worn.
+ *       - If timeout reached while still UNKNOWN → assumes not worn.
+ *   • applyState(...):
+ *       - Updates in-memory flags (isWorn, wearState).
+ *       - Persists WEAR_BOOL and WEAR_STATE to WEAR_PREFS.
+ *       - Calls DataStorageManager.saveWearStateToDatabase(worn) for a DB-safe record.
+ *   • stop():
+ *       - Unregisters off-body listener and stops the HR resolver.
+ *
+ * Notes:
+ *   • isWorn() is a quick accessor used by the ForegroundSensorService and other components.
+ *   • Design avoids flipping from ON to OFF based only on noisy HR; OFF is trusted from off-body
+ *     or from HR timeout when the state was still UNKNOWN.
+ */
+
 public class WatchWearDetector implements SensorEventListener {
 
     // Tag used for logging/debugging
@@ -179,8 +211,6 @@ public class WatchWearDetector implements SensorEventListener {
         DataStorageManager.saveWearStateToDatabase(worn);
         LogSaver.saveLog(TAG, "d", "Watch worn: " + worn + ", so state is: " + state + ", so saving: "+worn+" to database");
     }
-
-
 
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {

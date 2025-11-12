@@ -9,6 +9,39 @@ import com.example.kurtosisstudy.sensors.HighPassFilter;
 import com.example.kurtosisstudy.sensors.LowPassFilter;
 import com.example.kurtosisstudy.sensors.MovingAverageFilter;
 
+/*
+ * ComputationManager
+ * ------------------
+ * Purpose:
+ *   - Central math/logic engine for GMAC (active movement) and ADEM (Active & Diverse Exploratory Movement).
+ *   - Provides rolling mean/std/kurtosis and threshold-based decision rules for real-time flags.
+ *
+ * What it does:
+ *   • Handedness:
+ *       - initFromPrefs(context) reads HANDEDNESS ("left"/"right") from SETTINGS_PREFS.
+ *       - AX_SIGN = +1 (left) or -1 (right) so inclination uses ±ax correctly.
+ *   • ADEM / kurtosis:
+ *       - computeKurtosis(...) maintains rolling mean, M2, M3, M4 over a 3000-sample window.
+ *       - Guards against negative moments and numerical issues.
+ *       - Uses computeKurtosisDecisionRule(...) to derive:
+ *           · stdDeg (angle std in degrees)
+ *           · u_kurtosis (ADEM flag from kurtosis + GMAC activity + std thresholds).
+ *   • GMAC:
+ *       - computeActivity(ax, ay, az):
+ *           · High-pass filters XYZ to remove gravity.
+ *           · Computes movement magnitude and smooths it via MovingAverageFilter.
+ *           · Returns u_alpha (movement active flag) + filtered magnitude.
+ *       - computeInclination(ax, ay, az):
+ *           · Computes pitch angle (omega_gmac) using atan2(AX_SIGN*ax, sqrt(ay²+az²)).
+ *           · Applies hysteresis around omega_th / incr_omega to produce u_omega.
+ *       - computeGMAC(ax, ay, az):
+ *           · Combines u_alpha and u_omega → final u_gmac (active movement flag).
+ *           · Returns {u_gmac, movementMagnitude, inclinationAngleDeg}.
+ *   • Rolling activity:
+ *       - computeActivityMean(...) keeps a rolling mean of u_GMAC over the last minute
+ *         (used as lambda_th in the ADEM decision rule).
+ */
+
 public class ComputationManager {
 
     private static final String TAG = "ComputationManager_KurtosisStudy";

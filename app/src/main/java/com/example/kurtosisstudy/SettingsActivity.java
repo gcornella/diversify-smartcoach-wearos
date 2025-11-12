@@ -19,6 +19,30 @@ import com.example.kurtosisstudy.complications.MyServiceAliveCheckComplicationPr
 import com.example.kurtosisstudy.complications.MyWearTimeComplicationProviderService;
 import com.example.kurtosisstudy.sensors.WatchWearDetector;
 
+/*
+ * SettingsActivity — Summary (Ultra-Short)
+ * ----------------------------------------
+ * PURPOSE:
+ *   Admin-only screen to change USER_ID and handedness
+ *   (affects handedness-corrected GMAC + DB tagging).
+
+ * ENTRY:
+ *   • Launched only if MainActivity passes EXTRA_ADMIN_OK=true.
+ *   • Uses simple horizontal stepper for USER_ID (1–50).
+ *   • RadioGroup selects left/right wrist.
+
+ * ACTIONS:
+ *   • Loads current prefs into UI.
+ *   • User edits ID + handedness → Save:
+ *        - Writes to SETTINGS_PREFS.
+ *        - Stops ForegroundSensorService so it restarts with new config.
+ *        - Returns RESULT_OK to MainActivity (to recreate UI if needed).
+
+ * NOTES:
+ *   • No live preview; changes take effect after service restart.
+ *   • safeInt() prevents invalid IDs.
+ */
+
 public class SettingsActivity extends AppCompatActivity {
 
     private static final String TAG = "SettingsActivity_KurtosisStudy";

@@ -52,9 +52,6 @@ public class BootReceiver extends BroadcastReceiver {
             // Alarm backstops: one-shot immediately, and one-shot again at +3 minutes
             AlarmScheduler.scheduleOneShot(context, 0L);
             AlarmScheduler.scheduleOneShot(context, 3 * 60_000L);
-
-
-
              */
         }
     }

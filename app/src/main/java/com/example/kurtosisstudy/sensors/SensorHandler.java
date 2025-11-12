@@ -16,6 +16,31 @@ import com.example.kurtosisstudy.LogSaver;
 
 import java.util.Arrays;
 
+/*
+ * SensorHandler
+ * -------------
+ * Purpose:
+ *   - Runs the accelerometer at ~50 Hz on a background thread and feeds real-time GMAC/ADEM logic.
+ *
+ * What it does:
+ *   • Starts a dedicated HandlerThread and registers the accelerometer with SENSOR_DELAY_FASTEST
+ *     (20_000 µs ≈ 50 Hz), keeping callbacks off the main/UI thread.
+ *   • For each sample:
+ *       - Stores timestamp + raw XYZ into circular buffers (3000-sample rolling window).
+ *       - Computes wrist orientation angle from gravity vector and saves it.
+ *       - Calls ComputationManager.computeGMAC(...) to get u_GMAC, raw GMAC, and inclination.
+ *       - Updates rolling mean GMAC via computeActivityMean(...).
+ *       - Calls ComputationManager.computeKurtosis(...) to update rolling mean/std/kurtosis
+ *         and binary u_kurtosis based on the window (using popped + new angle).
+ *   • When the buffer wraps (window full), clones all buffers and sends them to
+ *     DataStorageManager.snapshotAndSaveBuffers(...) for batched DB writes.
+ *   • Monitors per-sample compute time and logs when processing exceeds 15 ms.
+ *   • stop():
+ *       - Unregisters the sensor and posts resetState() to clear buffers and rolling stats.
+ *   • shutdown():
+ *       - Calls stop(), then quits and joins the HandlerThread for a clean teardown.
+ */
+
 // Handles sensor registration and streams data at 50 Hz in background.
 public class SensorHandler implements SensorEventListener {
 
