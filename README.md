@@ -32,19 +32,14 @@ KurtosisStudy
 └── settings.gradle      
 ```
 
-**Screenshots / Diagrams**
-- Overview: ![Pipeline overview](docs/IMG_6589.PNG)
-
----
-
 ## app/
 
 **Main Application (WearOS)**
-- Overview: ![Pipeline overview](docs/IMG_6589.PNG)
-
+- Main watch face and activities: ![Pipeline overview](docs/mainWatchFigure.png)
+- Angles measured by the watch: ![Pipeline overview](docs/anglesPlots.png)
 ---
 
-### ⚙️ MainActivity
+### 🕹️️ MainActivity
 * **Boot & start sensing:** launches the foreground sensor service and sets up the main UI.
 * **Permissions & power:** requests BODY_SENSORS / notifications and prompts to ignore battery optimizations.
 * **Live UI updates:** observes Room LiveData to keep the progress ring and “active time” text current (hides ring on baseline weeks).
@@ -52,12 +47,12 @@ KurtosisStudy
 * **Resume sync:** on return, rechecks service liveness and refreshes the UI.
 * **Small helpers:** start/stop service, alive check via foreground heartbeat and periodic worker.
 
-### ⚙️ SettingsActivity
+### 🎚️ SettingsActivity
 * By clicking the "settingsButton" from MainActivity, the user is asked for an admin password, if correct, it opens SettingsActivity
 * Lets you change to a new USER_ID and choose the user's handedness. Choosing the appropriate impaired hand side is very important.
 * Persists changes to SharedPreferences, shows a toast, stops the FGS, and relaunches the MainActivity to apply these new settings.
 
-### ⚙️ ForegroundSensorService (FGS)
+### 🔋 ForegroundSensorService (FGS)
 * **Foreground & heartbeat:** starts as a sticky foreground service with a persistent notification; writes a heartbeat every 60 s so the app/complication can see it’s alive.
 * **Power safety:** acquires a partial WakeLock to keep sensing/loops running with screen off; releases on destroy.
 * **Active-hours logic:** only records during 08:00–22:00 and when the watch is worn (via wear detector).
@@ -68,7 +63,7 @@ KurtosisStudy
 * **Reliability & restart:** watchdog re-inits schedulers; self-restarts on task removal with an alarm fallback on newer Android versions.
 * **Cleanup:** on destroy, stops handlers/executors, releases WakeLock, and shuts down sensors cleanly.
 
-### ⚙️ WatchWearDetector
+### ⌚ WatchWearDetector
 * **Initialization:** When the watch is powered on, restarted, or rebooted, it registers the off-body and heart-rate sensors, and saves current wear state using off-body sensor.
 * **Start:** On startup, if the wear state is "unknown" and the off-body sensor did not run, it launches a short heart-rate check to determine whether the watch is being worn.
 * **Off-body sensor:** The off-body sensor updates the wear state whenever the watch is put on or taken off, while the heart-rate sensor is only used when off-body was not called on FGS start (can happen in some watches).
@@ -77,7 +72,7 @@ KurtosisStudy
 * **Stop:** When stopped, it unregisters all sensors and ends any active heart-rate checks.
 * **Quick Access:** A method `isWorn()` is available to quickly check if the watch is currently on the wrist.
 
-### ⚙️ SensorHandler
+### 🩺 SensorHandler
 * **Role:** Streams accelerometer data at 50 Hz on a dedicated background thread and feeds real-time GMAC/ADEM computations.
 * **Initialization:** Starts a `HandlerThread`, sets up the `SensorManager`, and prepares accelerometer access.
 * **Start:** Registers the accelerometer listener at 50 Hz, begins filling circular buffers, and logs activation.
@@ -86,7 +81,7 @@ KurtosisStudy
 * **Stop & Reset:** Unregisters the sensor, clears buffers and rolling stats safely on the background thread.
 * **Shutdown:** Gracefully stops the worker thread (`quitSafely`), waits for completion, and logs the shutdown.
 
-### ⚙️ ComputationManager
+### 🧰 ComputationManager
 * **Role:** Streams and scores movement in real time: computes GMAC (active movement) and ADEM (kurtosis + STD + GMAC).
 * **Windowing:** Uses a rolling 3000-sample window (~60 s at 50 Hz) with numerically safe online updates.
 * **computeGMAC:** Combines movement (computeActivity: HP-filtered magnitude + moving average) and forearm inclination (computeInclination: with hysteresis). Returns u_gmac flag (1 if active).
@@ -94,7 +89,7 @@ KurtosisStudy
 - GMAC figure: ![Pipeline overview](docs/GMAC_fig.png)
 - ADEM figure: ![Pipeline overview](docs/ADEM_fig.png)
 
-### ⚙️ DataStorageManager
+### 🔐 DataStorageManager
 * **Role:** Central I/O + analytics layer. Rotates a daily Room DB per date and maintains a cross-day MainResults DB; exposes cached values via SharedPreferences.
 * **Init & rotation:** init(ctx) ensures executors, opens MainResultsDatabase, and (re)creates today’s DailyDatabase (User<id>_yyyy_MM_dd). Detects day change with shouldReinitializeDailyDb().
 * **Study/Week logic:** Stores study start, computes week number from DB/timezone, mirrors to prefs, and refreshes complications when week changes.
@@ -108,29 +103,29 @@ KurtosisStudy
 * **Quick reads/helpers:** initializeLastKnownProgress(), initializeLastKnownGoal(), getLastNotWornTimestampToday(), getCumulative30MinsBefore(), getActivityDuringPrev30Minutes(), getDayForDB().
 * **Reliability:** Single-thread analytics executor with auto-revive; all heavy work off the main thread. shutdown() closes executors/DBs cleanly.
 
-### ⚙️ GoalNotificationManager
+### 🔔 GoalNotificationManager
 * **Role:** Organized notification display. Notifies users to wear the watch if it has not being worn, to promote increased wear time. Notifies users if they have been inactive, to promote more movement.
 * **notifyIfGoalReached(...) —** Off the UI thread, it estimates expected progress from the last continuous worn run (08:00–22:00), checks inactivity in the past 30 min, then posts a HIGH-importance nudge proposing an exercise action and logs it.
 * **notificationIfWatchNotWorn(...) —** After 10:00, if the watch has been off-wrist for ≥30 min and ≥30 min since the last reminder, it posts a friendly “wear me” reminder, records the time, and triggers a 1-second exact alarm as a fallback ping (as notifications are not shown if the user is not wearing the watch).
 
-#### NotWornAlarmReceiver
+#### 🙅🏼‍♂️ NotWornAlarmReceiver
 * Promoting long periods of wear time is essential, thus when the user has not been wearing the watch for more than 30' a notification pops up. 
 * We use an alarm-style alert instead of a normal notification because Wear OS often hides standard notifications when the watch isn’t being worn, so this ensures the user still gets an attention-grabbing prompt.
 * Fires from an AlarmManager alarm after the “not worn” threshold of 30', checks ringer/DND state, then (when allowed) plays an alarm sound, vibrates, and shows a high-priority/full-screen notification that opens the app.
  
-### ⚙️ ExerciseActivity
+### 💪🏽 ExerciseActivity
 * To motivate users to move more and to give them ideas of beneficial exercises:
 * Shows a random exercise GIF (avoiding immediate repeats) and saves its ID and timestamp in SharedPreferences.
 * The "Done" button lets the user switch to the next exercises after the exercise has been finished.
 * Keeps the screen awake for a ~3-minute window to avoid it turning idle or black.
 
-### ⚙️ LogSaver
+###  🪵️ LogSaver
 * Asynchronously logs messages to Android’s Logcat (level-aware).
 * Also saves logs into the app’s Room DailyDatabase. If the daily database isn’t ready/open, it buffers log entries in memory and flushes them to the DB once available.
 
 ---
 
-### ⚙️ Databases
+### 💾 Databases
 There is a main database, and then an additional database per each new day with the raw data.
 ```
 db
@@ -152,7 +147,7 @@ db
 │       ├── SensorSampleEntity/     # same but for the second day...
 │   ├── .../                        # an additional db per day
 ```
-### ⚙️ SharedPreferences
+### 💿 SharedPreferences
 Instead of a db, this app also uses local storage to save variables.
 Variable keys are saved in the `PrefsKeys.java` file.
 ```
@@ -191,18 +186,18 @@ SharedPreferences
 │   ├── LAST_NOTIF_TIME/      
 ```
 
-### CloudStorageActivity + DatabaseUploadWorker (create your own Google Firebase project)
+### ☁️ CloudStorageActivity + DatabaseUploadWorker (create your own Google Firebase project)
 * Reliable, timely cloud uploads let therapists review objective movement data remotely, enabling good remote patient monitoring (RPM) and progress checks.
 * CloudStorageActivity shows which databases are pending upload (MAIN + recent days), lets you start an upload, observes the unique WorkManager job to display progress (✅ per item, %).
 * It requires Wi-Fi, loads the active USER_ID, lists up to the last 20 days (today + 19), hides database list briefly after success (cooldown), and only uploads days that exist locally and aren’t already in the cloud.
 * DatabaseUploadWorker uploads daily zips idempotently using SHA-256 (skips identical); reports item progress for the UI; records last successful upload time; and safely prunes local daily DBs older than 14 days only if the cloud copy exists.
 * I used Firebase, so you'll need to create your own cloud project and generate a new `google-services.json` file.
 
-### ⚙️ Safety & Service Restarts
+### 🦺 Safety & Service Restarts
 The app is built to keep running on its own, so you don’t have to press buttons or manage services. This is especially important for stroke rehabilitation: the less interaction needed, the more accessible and usable the watch is.
 Sometimes Android may stop the movement-tracking service (called the ForegroundSensorService, FGS), for example after a reboot, battery restrictions, or system clean-up. To make sure the service always comes back without you needing to do anything, the app uses several layers of safety:
 
-#### ⚙️ HeartBeatCheckWorker
+#### 💓 HeartBeatCheckWorker
 * MainActivity schedules a unique periodic WorkManager (HeartBeatCheckWorker) every 15 minutes (plus one immediate run) to verify that the ForegroundSensorService (FGS) is alive.
 * The FGS writes a heartbeat timestamp every 60 seconds; this worker checks liveness by comparing the last heartbeat age against a TTL of 2 beats.
 * If the heartbeat is not expired, it simply refreshes the “service alive” complication and exits.
@@ -212,17 +207,17 @@ Sometimes Android may stop the movement-tracking service (called the ForegroundS
 * enqueuePeriodic() --> Schedules a repeating run about every 15 min (the minimum). It persists across reboot. Because we used KEEP, later attempts with the same unique name won’t create a second periodic task.
 * enqueueNow() --> Also enqueues one run ASAP, but KEEP means if there’s already unfinished work with that unique name, it won’t enqueue another.
 
-#### ResumeServiceNotification
+#### ▶ ResumeServiceNotification
 * This builds a persistent “Tap to resume” notification with a Resume action that directly starts your FGS safely via user interaction.
 * Sometimes Wear OS blocks a foreground service from starting automatically, so user interaction (via a notification tap) may be required.
 
-#### Boot Receiver
+#### 👢 Boot Receiver
 * First, BOOT_COMPLETED is set on the Manifest.xml so that the app knows that it has to run the BootReceiver on reboot.
 * On reboot, set wear state to STATE_UNKNOWN=-1 (after the watch turns off we don't know if the user took the watch off or kept it on)
 * Call HeartbeatCheckWorker immediately to try reopening FGS automatically. Ensure the 15-min periodic HeartbeatCheckWorker exists, even though it should survive reboots.
 * As an additional precaution, use an alarm to restart the FGS in case the worker fails. 
 
-#### AlarmScheduler & RestartReceiver
+#### ⏰ AlarmScheduler & RestartReceiver
 * HeartbeatCheckWorker runs through WorkManager, which can be delayed or throttled, especially right after boot or when Android enforces background start limits, then FGS might not be started.
 * To cover these cases, the app also calls AlarmScheduler + RestartReceiver o reboot as exact one-shot backstops that recheck liveness and attempt to start the FGS or else show ResumeServiceNotification.
 
@@ -235,7 +230,7 @@ Source code for the custom watchface and complications is in this repo:
 **New watchface and complications**
 - Overview: ![Pipeline overview](docs/IMG_6589.PNG)
 
-### ⚙️ Complications overview
+###  🛠️️ Complications overview
 Although more details are available on the watchface repo, here goes a summary:
 For increased usability, 4 complications are shown on a custom-made watchface with the most important metrics, so that users don't have to enter the activity each time they want to see their progress.
 * **MyComplicationProviderService:** A clickable complication that opens "ExerciseActivity" to propose active or diverse exercises by showing a GIF animation.
@@ -245,7 +240,7 @@ For increased usability, 4 complications are shown on a custom-made watchface wi
 
 ---
 
-## Tips and recommendations
+## 💡 Tips and recommendations
 While building this app I encountered a lot of barriers, and I would like to share some of them:
 
 1. **Foreground service randomly stopping (Samsung killing the app)**
