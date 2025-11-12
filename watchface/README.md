@@ -63,7 +63,7 @@ You can plug in your own complication providers or use the defaults included.
 
 ---
 
-## 7) Health-oriented UI principles baked into the XML
+## Health-oriented UI principles baked into the XML
 
 * **Single dominant metric:** A larger ring (Slot 0) makes the primary health goal unmistakable.
 * **Big, readable time & date:** The clock sits on top of everything for constant visibility.
