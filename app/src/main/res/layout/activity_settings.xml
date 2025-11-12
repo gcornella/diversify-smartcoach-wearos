@@ -1,55 +1,130 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/rootScroll"
+<androidx.wear.widget.BoxInsetLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fillViewport="true">
+    app:boxedEdges="all">
 
-    <LinearLayout
-        android:id="@+id/root"
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
+        android:layout_height="match_parent"
+        android:fillViewport="true">
 
-        <!-- Upload button on top -->
-        <Button
-            android:id="@+id/btnUploadDb"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Upload to Cloud" />
-
-
-
-        <TextView
-            android:id="@+id/textSubtitle"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Items to upload:"
-            android:textStyle="bold"
-            android:layout_marginTop="12dp" />
-
-        <!-- Just a container; the whole page now scrolls -->
         <LinearLayout
-            android:id="@+id/listContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical" />
+            android:padding="12dp"
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
 
-        <!-- Status strip (progress / success / failure) -->
-        <TextView
-            android:id="@+id/textStatus"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text=""
-            android:layout_marginTop="8dp" />
+            <!-- Title -->
+            <TextView
+                android:id="@+id/title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:layout_marginBottom="5dp"
+                android:gravity="center"
+                android:text="Admin settings"
+                android:textSize="18sp"
+                android:textStyle="bold" />
 
-        <!-- Optional manual refresh -->
-        <Button
-            android:id="@+id/btnRefresh"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Refresh list"
-            android:layout_marginTop="8dp" />
-    </LinearLayout>
-</ScrollView>
+            <!-- Row: User ID (label + horizontal stepper) -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:text="User ID:"
+                    android:textSize="14sp" />
+
+                <!-- Stepper: -  [value]  + -->
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btnUserIdMinus"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:text="−" />
+
+                    <TextView
+                        android:id="@+id/textUserIdValue"
+                        android:layout_width="38dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:layout_marginEnd="6dp"
+                        android:gravity="center"
+                        android:text="1"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <Button
+                        android:id="@+id/btnUserIdPlus"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:text="+" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Row: Hand (label + Left/Right) -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:gravity="center"
+                android:orientation="horizontal"
+                android:scaleX="0.95"
+                android:scaleY="0.95">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:text="Hand:"
+                    android:textSize="14sp" />
+
+                <RadioGroup
+                    android:id="@+id/groupHand"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <RadioButton
+                        android:id="@+id/radioLeft"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Left"
+                        android:textSize="14sp" />
+
+                    <RadioButton
+                        android:id="@+id/radioRight"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:text="Right"
+                        android:textSize="14sp" />
+                </RadioGroup>
+            </LinearLayout>
+
+            <!-- Save -->
+            <Button
+                android:id="@+id/btnSave"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginTop="8dp"
+                android:text="Save" />
+        </LinearLayout>
+    </ScrollView>
+</androidx.wear.widget.BoxInsetLayout>
