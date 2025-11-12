@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+xmlns:android="http://schemas.android.com/apk/res/android"
+xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+android:layout_height="match_parent"
+android:padding="8dp">
+
+<!-- Horizontal guideline to allocate space:
+     - everything above is for the GIF (≈75% height)
+     - below it sits the button -->
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/guideline_top_of_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        app:layout_constraintGuide_end="63dp" />
+
+<!-- GIF on top: Glide will load the animated drawable into this ImageView -->
+
+    <!-- BUTTON below the GIF -->
+    <ImageView
+        android:id="@+id/gifView"
+        android:layout_width="160dp"
+        android:layout_height="130dp"
+        android:adjustViewBounds="true"
+        android:contentDescription="@string/exercise_image_cd"
+        android:scaleType="centerCrop"
+        app:layout_constraintBottom_toTopOf="@id/guideline_top_of_button"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.8" />
+
+    <Button
+        android:id="@+id/btnDone"
+        android:layout_width="120dp"
+        android:layout_height="60dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp"
+        android:text="@string/exercise_done"
+        android:textSize="14sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/guideline_top_of_button" />
+
+<!--
+Text commented out as requested:
+
+<TextView
+    android:id="@+id/exerciseText"
+    android:layout_width="0dp"
+    android:layout_height="wrap_content"
+    android:textAppearance="?attr/textAppearanceBody2"
+    app:layout_constraintTop_toBottomOf="@id/gifView"
+    app:layout_constraintStart_toStartOf="parent"
+    app:layout_constraintEnd_toEndOf="parent"
+    android:layout_marginTop="8dp"
+    android:gravity="center" />
+-->
+
+</androidx.constraintlayout.widget.ConstraintLayout>
