@@ -122,7 +122,7 @@ KurtosisStudy
 * The "Done" button lets the user switch to the next exercises after the exercise has been finished.
 * Keeps the screen awake for a ~3-minute window to avoid it turning idle or black.
 ![Exercise overview](docs/exerciseScreen.png)
-- 
+
 ###  🪵️ LogSaver
 * Asynchronously logs messages to Android’s Logcat (level-aware).
 * Also saves logs into the app’s Room DailyDatabase. If the daily database isn’t ready/open, it buffers log entries in memory and flushes them to the DB once available.
@@ -231,8 +231,7 @@ Sometimes Android may stop the movement-tracking service (called the ForegroundS
 Source code for the custom watchface and complications is in this repo:
 **https://github.com/gcornella/Diversify_WatchFaceComplications**
 
-**New watchface and complications**
-- Overview: ![COMPLICATIONS overview](docs/complications.png)
+![COMPLICATIONS overview](docs/complications.png)
 
 ###  🛠️️ Complications overview
 Although more details are available on the watchface repo, here goes a summary:
