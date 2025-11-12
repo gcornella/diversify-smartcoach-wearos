@@ -1,8 +1,9 @@
-# ⌚ Diversify
-
+# ⌚ Diversify 
+<br>
 **Diversify** is a Wear OS app built in Java with Android Studio for robust and continuous arm-movement tracking implemented on Samsung smartwatches.
 It measures active time via GMAC and introduces ADEM (Active & Diverse Exploratory Movement), a diversity-focused metric leveraging kurtosis and standard deviation of the wrist-tilt range, in combination with a sustained activity. 
 Below is a concise guide to understand the app. This documentation includes recommendations and tips for developers aiming to build similar applications.
+
 ---
 
 ## 🚀 Main Functionalities
