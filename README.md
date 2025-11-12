@@ -5,6 +5,8 @@
 It measures active time via GMAC and introduces ADEM (Active & Diverse Exploratory Movement), a diversity-focused metric leveraging kurtosis and standard deviation of the wrist-tilt range, in combination with a sustained activity. 
 Below is a concise guide to understand the app. This documentation includes recommendations and tips for developers aiming to build similar applications.
 
+- Main watch face and activities: ![Pipeline overview](docs/mainWatchFigure.png)
+
 ---
 
 ## 🚀 Main Functionalities
@@ -35,8 +37,8 @@ KurtosisStudy
 ## app/
 
 **Main Application (WearOS)**
-- Main watch face and activities: ![Pipeline overview](docs/mainWatchFigure.png)
-- Angles measured by the watch: ![Pipeline overview](docs/anglesPlots.png)
+- Summary of the App files: ![Pipeline overview](docs/diversifyPipeline.png)
+- 
 ---
 
 ### 🕹️️ MainActivity
@@ -83,6 +85,7 @@ KurtosisStudy
 
 ### 🧰 ComputationManager
 * **Role:** Streams and scores movement in real time: computes GMAC (active movement) and ADEM (kurtosis + STD + GMAC).
+* - Angles measured by the watch: ![Pipeline overview](docs/anglesPlots.png)
 * **Windowing:** Uses a rolling 3000-sample window (~60 s at 50 Hz) with numerically safe online updates.
 * **computeGMAC:** Combines movement (computeActivity: HP-filtered magnitude + moving average) and forearm inclination (computeInclination: with hysteresis). Returns u_gmac flag (1 if active).
 * **computeADEM:** Sliding-window std and kurtosis with guards; diversity decision requires: kurtosis < kappa_th, meanGMAC > lambda_th, and stdDeg > angl_th. Returns u_adem flag (1 if diverse)
