@@ -1,4 +1,4 @@
-# ⌚ Diversify 
+# ⌚ Diversify: A Samsung WearOS App That Encourages Arm Movement
 <br>
 
 **Diversify** is a Wear OS app built in Java with Android Studio for robust and continuous arm-movement tracking implemented on Samsung smartwatches.
